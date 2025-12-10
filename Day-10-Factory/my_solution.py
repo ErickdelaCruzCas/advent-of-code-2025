@@ -1,47 +1,70 @@
+import sys
+from functools import cache
+from collections import defaultdict, Counter, deque
+import z3
 
+D = sys.stdin.read()
+p1 = 0
+p2 = 0
+for line in D.splitlines():
+    words = line.split()
+    goal = words[0]
+    goal = goal[1:-1]
+    goal_n = 0
+    for i,c in enumerate(goal):
+        if c=='#':
+            goal_n += 2**i
 
+    buttons = words[1:-1]
+    B = []
+    NS = []
+    for button in buttons:
+        ns = [int(x) for x in button[1:-1].split(',')]
+        button_n = sum(2**x for x in ns)
+        B.append(button_n)
+        NS.append(ns)
 
-import requests
+    score = len(buttons)
+    for a in range(2**len(buttons)):
+        an = 0
+        a_score = 0
+        for i in range(len(buttons)):
+            if ((a>>i)%2) == 1:
+                an ^= B[i]
+                a_score += 1
+        if an == goal_n:
+            score = min(score, a_score)
+    p1 += score
 
-YEAR = 2025
-DAY = 10
+    # solve Ax = B
+    # where A = effect of each button
+    # x = how many times we press each button
+    # B = goal state
+    # minimize(sum(X))
+    joltage = words[-1]
+    joltage_ns = [int(x) for x in joltage[1:-1].split(',')]
+    V = []
+    for i in range(len(buttons)):
+        V.append(z3.Int(f'B{i}'))
+    EQ = []
+    for i in range(len(joltage_ns)):
+        terms = []
+        for j in range(len(buttons)):
+            if i in NS[j]:
+                terms.append(V[j])
+        eq = (sum(terms) == joltage_ns[i])
+        EQ.append(eq)
+    o = z3.Optimize()
+    o.minimize(sum(V))
+    for eq in EQ:
+        o.add(eq)
+    for v in V:
+        o.add(v >= 0)
+    assert o.check()
+    M = o.model()
+    for d in M.decls():
+        #print(d.name(), M[d])
+        p2 += M[d].as_long()
 
-session_cookie = "53616c7465645f5fd44d6f480366191d72d942d87accf22b4d3a87d57a92458a1c6af851868975d767e22530d34e2a15e540cb3ea6b0739522377ce4175b2ec6"
-headers = {"User-Agent": "erick-aoc-script"}
-url = f"https://adventofcode.com/{YEAR}/day/{DAY}/input"
-cookies = {"session": session_cookie}
-
-
-def getDataFile():
-    coords = []
-    with open("first_input.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.split()
-            coords.append(line)
-            # for i in range(len(line)):
-            #     if line[i] == '{}':
-
-                           
-    return coords
-    
-def getDataHttp():
-    resp = requests.get(url, cookies=cookies, headers=headers)
-    if resp.status_code == 200:
-        print(resp.text)
-
-    else:
-        print("Error:", resp.status_code)
-
-
-
-
-if __name__ == "__main__":
-    print(f"Empezamos")
-    res = 0
-
-    data = getDataFile()
-    realData = getDataHttp()
-
-    print(f"Solución y valor de Factory: {res}") 
-
-
+print(p1)
+print(p2)
